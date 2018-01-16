@@ -6,21 +6,22 @@ import fnmatch
 import pylab as pl
 
 # Adding Files and locations
-froot = 'D:/DATA/ABR/'
+froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab'
 
-subjlist = ['S050', ]
+subjlist = ['S050',]
 
 conds = [[3, 9], [5, 10], [6, 12], [48, 144], [80, 160], [96, 192], [6], [12],
          [96], [192]]
-
+### what are the the file types in the subject folder: bdf, fif
+### command+i doesn't seem to be working
 for subj in subjlist:
 
     fpath = froot + '/' + subj + '/'
-
     print 'Running Subject', subj
+    
     rawlist = []
     evelist = []
-
+### list of bdf files
     bdfs = fnmatch.filter(os.listdir(fpath), subj + '_ABR*.bdf')
 
     if len(bdfs) >= 1:
@@ -29,6 +30,7 @@ for subj in subjlist:
             # Load data and read event channel
             extrachans = [u'GSR1', u'GSR2', u'Erg1', u'Erg2', u'Resp',
                           u'Plet', u'Temp']
+            ### rawsem, evestemp
             (rawtemp, evestemp) = bs.importbdf(edfname, nchans=36,
                                                extrachans=extrachans)
             rawtemp.set_channel_types({'EXG3': 'eeg', 'EXG4': 'eeg'})
@@ -47,6 +49,7 @@ for subj in subjlist:
     goods = [28, 3, 30, 26, 4, 25, 7, 31, 22, 9, 8, 21, 11, 12, 18]
     abrs = []
     pl.figure()
+    ### Extracting averaged epoches
     for cond in conds:
         print 'Doing condition ', cond
         epochs = mne.Epochs(raw, eves, cond, tmin=tmin, proj=False,
@@ -67,6 +70,7 @@ for k in L:
     abr = abrs[k]
     x = abr.data * 1e6  # microV
     t = abr.times * 1e3 - 1.6  # Adjust for delay and use milliseconds
+    ### goods
     y = x[goods, :].mean(axis=0) - x[34, :]
     y = y - y[(t > 0.) & (t < 1.)].mean()
     pl.plot(t, y, linewidth=2)
