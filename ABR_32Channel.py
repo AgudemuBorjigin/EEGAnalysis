@@ -9,28 +9,27 @@ import pylab as pl
 froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab'
 
 subjlist = ['S050',]
-
+### How were the conditions defined?
 conds = [[3, 9], [5, 10], [6, 12], [48, 144], [80, 160], [96, 192], [6], [12],
          [96], [192]]
-### what are the the file types in the subject folder: bdf, fif
-### command+i doesn't seem to be working
+
 for subj in subjlist:
 
     fpath = froot + '/' + subj + '/'
-    print 'Running Subject', subj
-    
+    print 'Running Subject', subj 
     rawlist = []
     evelist = []
-### list of bdf files
+    
+    # Extracting the bdf file names into bdfs
     bdfs = fnmatch.filter(os.listdir(fpath), subj + '_ABR*.bdf')
 
     if len(bdfs) >= 1:
         for k, bdf in enumerate(bdfs):
             edfname = fpath + bdf
             # Load data and read event channel
+            ### Additional channels: needs exploring
             extrachans = [u'GSR1', u'GSR2', u'Erg1', u'Erg2', u'Resp',
                           u'Plet', u'Temp']
-            ### rawsem, evestemp
             (rawtemp, evestemp) = bs.importbdf(edfname, nchans=36,
                                                extrachans=extrachans)
             rawtemp.set_channel_types({'EXG3': 'eeg', 'EXG4': 'eeg'})
@@ -38,7 +37,7 @@ for subj in subjlist:
             evelist += [evestemp, ]
     else:
         RuntimeError('No BDF files found!!')
-
+    
     raw, eves = mne.concatenate_raws(rawlist, events_list=evelist)
     # Filter the data
     raw.filter(l_freq=30., h_freq=3000, picks=np.arange(36))
@@ -46,10 +45,12 @@ for subj in subjlist:
     raw.info['bads'] += ['EXG3', 'EXG4', 'A1', 'A2', 'A30', 'A7', 'A6',
                          'A24', 'A28', 'A29', 'A3', 'A11', 'A15',
                          'A16', 'A17', 'A10', 'A21', 'A20', 'A25']
+    # Channels on top of head are considered good
     goods = [28, 3, 30, 26, 4, 25, 7, 31, 22, 9, 8, 21, 11, 12, 18]
+    
     abrs = []
     pl.figure()
-    ### Extracting averaged epoches
+    
     for cond in conds:
         print 'Doing condition ', cond
         epochs = mne.Epochs(raw, eves, cond, tmin=tmin, proj=False,
@@ -59,19 +60,19 @@ for subj in subjlist:
                             verbose='WARNING')
         abr = epochs.average()
         abrs += [abr, ]
-
+# Putting all the averages of epochs into one file
 mne.write_evokeds(fpath + subj + '_ABR-ave.fif', abrs)
 
 # Plot data
 R = [3, 4, 5]
 L = [0, 1, 2]
-# L = [1, 2]
 for k in L:
     abr = abrs[k]
     x = abr.data * 1e6  # microV
     t = abr.times * 1e3 - 1.6  # Adjust for delay and use milliseconds
-    ### goods
+    ### Referenced to channel 34?
     y = x[goods, :].mean(axis=0) - x[34, :]
+    ### Remiving DC offset?
     y = y - y[(t > 0.) & (t < 1.)].mean()
     pl.plot(t, y, linewidth=2)
 pl.xlabel('Time (ms)', fontsize=14)
@@ -90,6 +91,7 @@ for k in R:
     abr = abrs[k]
     x = abr.data * 1e6  # microV
     t = abr.times * 1e3 - 1.6  # Adjust for delay and use milliseconds
+    ### Referenced to channel 35?
     y = x[goods, :].mean(axis=0) - x[35, :]
     # y = y - y[(t > 0.5) & (t < 1.0)].mean()
     pl.plot(t, y, linewidth=2)
