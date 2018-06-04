@@ -13,13 +13,13 @@ from mne.time_frequency import tfr_multitaper # calculating inter-trial coherenc
 import mne
 import numpy as np # support for large, multi-dimensional arrays and metrices
 import pylab as pl
-import os ### 
-import fnmatch ###
+import os # it assigns its path attribute to an os-specific path module
+import fnmatch # unix filename pattern matching
 
 
 # Adding Files and locations
-froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python'
-subjlist = ['S142',]
+froot = '/home/agudemu/Data'
+subjlist = ['S145',]
 
 for subj in subjlist:
     fpath = froot + '/' + subj + '/'
@@ -41,13 +41,11 @@ for subj in subjlist:
     # the returned eves has three columns: sample number, value of onset, value of offset.     
     raw, eves = mne.concatenate_raws(rawlist, events_list = evelist)
     # Things to try if data are too noisy
-    # raw.info['bads'] += ['A7', 'A6', 'A24'] # if A7, A6, A24 have been rejected a lot, they can be added manually
-    # raw.set_eeg_reference(ref_channels=['Average']) # referencing to the average of all channels, do this if channels are too noisy  
+      # raw.info['bads'] += ['A7', 'A6', 'A24'] # if A7, A6, A24 have been rejected a lot, they can be added manually
+      # raw.set_eeg_reference(ref_channels=['Average']) # referencing to the average of all channels, do this if channels are too noisy  
     
     eves2 = eves.copy()
-    # the returned eves has three columns: sample number, value of onset, value of offset.
-    # the eves are in 16 bits originally,
-    # so this operation only looks at the lower 8 bits. Higher 8 bits are always 
+    # the eves are in 16 bits originally, so this operation only looks at the lower 8 bits. higher 8 bits are always 
     # high, representing button box condition. If interested in what's happening at button press, do np.floor(eves2[:,1]/256)
     eves2[:, 1] = np.mod(eves2[:, 1], 256) 
     eves2[:, 2] = np.mod(eves2[:, 2], 256)
@@ -67,33 +65,35 @@ for subj in subjlist:
                                    proj = False, baseline = (-0.5, 0), 
                                    reject=dict(eeg=500e-6)) 
         # PCA is only applied to the epochs around eye blinks. Since the eye blinks are 
-        # contributing the most to the variance within this chunk of window, 
-        # the first PCA (first eigenvector) is going to be due to the eye blink 
-        # for sure and removed. If the PCA was performed on the whole samples, we wouldn't
-        # know which vector is going to be linked to the eye blink
+          # contributing the most to the variance within this chunk of window, 
+          # the first PCA (first eigenvector) is going to be due to the eye blink 
+          # for sure and removed. If the PCA was performed on the whole samples, we wouldn't
+          # know which vector is going to be linked to the eye blink
+        
         # for "n_eeg", it's recommended to remove only the biggest projection, which is eye blinks in this case
-    
+          # greater n_eeg removes more nueral data, which might not be favorable
         blink_projs = compute_proj_epochs(epochs_blinks, n_grad=0,
                                           n_mag=0, n_eeg=1,
-                                          verbose='DEBUG') # greater n_eeg removes more nueral data
+                                          verbose='DEBUG') 
         raw.add_proj(blink_projs) # raw.del_proj()
         # raw.plot_projs_topomap() shows the 4 max PCAs (eigenvectors)
         
         # if channels are too noisy, play with n_eeg, if the second variance is acting more than
-        # the first, that means the channels are contaminated not just by the eye blinks, but also
-        # from other sources, using raw.plot(events = blinks, show_options = True)
-        # raw.plot(events = blinks, show_options = True) could show the options for applying different projections
+          # the first, that means the channels are contaminated not just by the eye blinks, but also
+          # from other sources, raw.plot(events = blinks, show_options = True) could show the options for applying different projections
     
     # Average evoked response across conditions
     epochs = mne.Epochs(raw, eves2, [1, 2, 3, 4, 5, 6, 7, 8], tmin = -0.5, proj = True, tmax = 2.5, 
                         baseline = (-0.5, 0), reject = dict(eeg=100e-6)) # change the channels as needed
-    # evoked = epochs.average() # always start with looking at evoked (averaged) response, 
-    # and see which channels are bad by using and evoked.plot(picks=[30, 31]) and evoked.plot_topomap(times=[1.2])
-    # add those channels to the list manually 
-    # by raw.info['bads'] += ['A7', 'A6', 'A24'] if necessary
+    # evoked = epochs.average() 
+      # always start with looking at evoked (averaged) response, 
+      # and see which channels are bad by using and evoked.plot(picks=[30, 31]) and evoked.plot_topomap(times=[1.2])
+      # add those channels to the list manually 
+      # by raw.info['bads'] += ['A7', 'A6', 'A24'] if necessary
     
-    #epochs.save(fpath+'/'+'no_blinks_epo.fif', split_size='2GB') # saving epochs into .fif format
+    # epochs.save(fpath+'/'+'no_blinks_epo.fif', split_size='2GB') # saving epochs into .fif format
     
+    # computation of inter-trial-coherence (itc)
     freqs = np.arange(5., 100., 2.)
     n_cycles = freqs/4. # time resolution is 0.25 s (1 s has "freq" number of cycles)
     time_bandwidth = 2.0 # number of taper = time_bandwidth product - 1 
@@ -101,10 +101,10 @@ for subj in subjlist:
     power, itc = tfr_multitaper(epochs, freqs = freqs,  n_cycles = n_cycles,
                    time_bandwidth = time_bandwidth, return_itc = True, n_jobs = 4)
     
-    #np.savez(fpath+'/'+'itc_power', itc = itc.data, power = power.data) # saves multiple arrays, saved in .npz format
-    # itc = itc seems to save the attributes of the itc instead of the real data
-    # npzFile = np.load(fpath+'/'+'itc_power.npz'), npzFiles.files, npzFile['itc']
-    # np.save(fpath+'/'+'itc_power', itc) # only one array, saved in .npy format
+    # np.savez(fpath+'/'+'itc_power', itc = itc.data, power = power.data) # saves multiple arrays, saved in .npz format
+      # itc = itc seems to save the attributes of the itc instead of the real data
+      # npzFile = np.load(fpath+'/'+'itc_power.npz'), npzFiles.files, npzFile['itc']
+      # np.save(fpath+'/'+'itc_power', itc) # only one array, saved in .npy format
     
     itc_copy = itc.copy()
     # itc_copy.plot_topo(baseline = (-0.5, 0), mode = 'zscore') 
