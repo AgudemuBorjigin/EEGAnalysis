@@ -18,7 +18,7 @@ import fnmatch # unix filename pattern matching
 
 
 # Adding Files and locations
-froot = '/home/agudemu/Data'
+froot = '/home/agudemu/Data/EEG/ITD'
 subjlist = ['S145',]
 
 for subj in subjlist:
