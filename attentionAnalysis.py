@@ -18,8 +18,8 @@ import fnmatch
 
 
 # Adding Files and locations
-#froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python/Atten'
-froot = '/home/agudemu/Data/EEG/Atten'
+froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python/Atten'
+#froot = '/home/agudemu/Data/EEG/Atten'
 subjlist = ['S011',]
 
 for subj in subjlist:
@@ -94,6 +94,7 @@ for subj in subjlist:
     epochs_short = mne.Epochs(raw, eves2, [3, 4, 7, 8], tmin = -0.5, proj = True, tmax = 4.2, 
                         baseline = (-0.5, 0.), reject = dict(eeg=150e-6)) # change the channels as needed
     evoked_shortStream = epochs_short.average() 
+    
     # evoeked_shortStream.plot_topo()
     # evoked = epochs.average() # always start with looking at evoked (averaged) response, 
     # and see which channels are bad by using and evoked.plot(picks=[30, 31]) and evoked.plot_topomap(times=[1.2]) for instance
@@ -113,43 +114,54 @@ for subj in subjlist:
     evoked_cue = epochs_cue.average()
     
     
-    # computation of inter-trial-coherence (itc)
-    freqs = np.arange(5., 100., 2.)
-    n_cycles = freqs/4. # time resolution is 0.25 s (1 s has "freq" number of cycles)
-    time_bandwidth = 2.0 # number of taper = time_bandwidth product - 1 
-    # usually n_cycles and time_bandwidth are fixed, which determines the frequency resolution 
-    # short-stream condition
-    power_short, itc_short = tfr_multitaper(epochs_short, freqs = freqs,  n_cycles = n_cycles,
-                   time_bandwidth = time_bandwidth, return_itc = True, n_jobs = 4)
-    itc_copy_short = itc_short.copy()
-    itc_data_short = itc_copy_short.data
-    # averaging across channels
-    itc_data_short_mean = itc_data_short.mean(axis = 0) # these indexes should be changed 
-    # if bad channels were added manually
-    pl.imshow(itc_data_short_mean, interpolation='bicubic', aspect='auto', 
-              origin='lower', cmap='RdBu_r') # the frequency axis doesn't seem to be right
+    def itc (epochs):
+        
+        # computation of inter-trial-coherence (itc)
+        freqs = np.arange(5., 100., 2.) # CHANGE AS NEEDED
+        n_cycles = freqs/4. # time resolution is 0.25 s (1 s has "freq" number of cycles)
+        time_bandwidth = 2.0 # number of taper = time_bandwidth product - 1 
+        # usually n_cycles and time_bandwidth are fixed, which determines the frequency resolution 
+        
+        power, itc = tfr_multitaper(epochs, freqs = freqs,  n_cycles = n_cycles,
+                       time_bandwidth = time_bandwidth, return_itc = True, n_jobs = 4)
+        itc_copy = itc.copy()
+        itc_data = itc_copy.data
+        # averaging across channels
+        itc_data_mean = itc_data.mean(axis = 0) # these indexes should be changed 
+        # if bad channels were added manually, DIFFERENT FROM SUBJECT TO SUBJECT
+        pl.imshow(itc_data_mean, interpolation='bicubic', aspect='auto', 
+                  origin='lower', cmap='RdBu_r') # the frequency axis doesn't seem to be right
+        
+        t = epochs.times
+        freqSub = np.where(freqs<10) # CHANGED FROM 22 TO 10
+        itc_ave = itc_data_mean[freqSub[0], :].mean(axis=0)
+        index = np.where(t>0)
+        index1 = index[0]
+        index1 = index1[0]
+        index = np.where(t<0.2) # CHNAGE AS NEEDED FOR DIFFERENT SUBJECTS
+        index2 = index[0]
+        index2 = index2[-1]
+        
+        noiseFloor = itc_ave[0:index1].mean(axis=0)
+        itc_ave = itc_ave - noiseFloor
+        
+        firstPeakAmp = np.absolute(np.max(itc_ave[index1:index2])) # ABSOLUTE? POLARITY MATTERS
+        itc_norm = itc_ave/firstPeakAmp
+        np.savez(froot+'/'+'itcs'+ '/'+'itc_avg'+'_'+subj, itc = itc_norm, t = t) 
+        return (t, itc_norm);
     
-    pl.figure()
-    t = epochs_short.times
-    freqSub = np.where(freqs<22)
-    itc_ave_below22Hz_short = itc_data_short_mean[freqSub[0], :].mean(axis=0)
-    index = np.where(t>0)
-    index1 = index[0]
-    index1 = index1[0]
-    index = np.where(t<0.2) # CHNAGE AS NEEDED FOR DIFFERENT SUBJECTS
-    index2 = index[0]
-    index2 = index2[-1]
+    def plot (t, itc_norm, condition, figureNum):
+        pl.figure(figureNum)
+        pl.plot(t, itc_norm)
+        pl.xlabel('Time (s)', fontsize=14)
+        pl.ylabel('Normalized response', fontsize=14)
+        pl.title('Phase locking: average across ' + condition + ' conditions', fontsize=14)
+        ax = pl.gca()
+        ax.tick_params(labelsize=14)
+        pl.show()  
+        return;
     
-    noiseFloor = itc_ave_below22Hz_short[0:index1].mean(axis=0)
-    itc_ave_below22Hz_short = itc_ave_below22Hz_short - noiseFloor
-    
-    firstPeakAmp = np.absolute(np.max(itc_ave_below22Hz_short[index1:index2])) # ABSOLUTE? POLARITY MATTERS
-    itc_norm_below22Hz = itc_ave_below22Hz_short/firstPeakAmp
-    np.savez(froot+'/'+'itcs'+ '/'+'itc_avg'+'_'+subj, itc = itc_norm_below22Hz, t = t)
-    pl.plot(t, itc_norm_below22Hz)
-    pl.xlabel('Time (s)', fontsize=14)
-    pl.ylabel('Normalized response', fontsize=14)
-    pl.title('Phase locking: average across short conditions', fontsize=14)
-    ax = pl.gca()
-    ax.tick_params(labelsize=14)
-    pl.show()
+    t_short, itc_norm_short = itc(epochs_short)
+    t_long, itc_norm_long = itc(epochs_long)
+    plot(t_short, itc_norm_short, 'short', 2)
+    plot(t_long, itc_norm_long, 'long', 3)
