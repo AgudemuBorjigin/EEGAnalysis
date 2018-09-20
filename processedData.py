@@ -5,11 +5,6 @@ Created on Mon Apr 16 14:20:40 2018
 
 @author: baoagudemu1
 """
-
-from anlffr.helper import biosemi2mne as bs
-from anlffr.preproc import find_blinks #
-from mne.preprocessing.ssp import compute_proj_epochs #
-from mne.time_frequency import tfr_multitaper # calculating inter-trial coherence (phase-locking)
 import mne
 import numpy as np # support for large, multi-dimensional arrays and metrices
 import pylab as pl
@@ -17,8 +12,9 @@ import os ###
 import fnmatch ###
 
 # Adding Files and locations
-froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python'
-subjlist = ['itcs',]
+#froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python'
+froot = '/media/agudemu/Storage/Data/EEG/ITD/itc_avg_auditory'
+subjlist = ['itcs_avg_channels_below40Hz',]
 
 for subj in subjlist:
     fpath = froot + '/' + subj + '/'
@@ -41,7 +37,6 @@ for subj in subjlist:
         RuntimeError("No fif files found!")
     
     itc_avgList = []
-    
     itc_avg_npzs = fnmatch.filter(os.listdir(fpath), 'itc_avg_S*.npz')
     
     if len(itc_avg_npzs) >= 1:
