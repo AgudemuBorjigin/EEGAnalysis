@@ -16,7 +16,7 @@ import fnmatch # unix filename pattern matching
 from scipy.signal import butter, lfilter
 
 stimulus = 'ITD'
-OS = 'Ubuntu'
+OS = 'Mac'
 
 if stimulus == 'ITD':
     if OS == 'Ubuntu':
@@ -244,6 +244,7 @@ for subj in subjlist:
         # evoked_chann32 = evoked.data[31] - noiseFloor
         evoked.plot(picks = [31])
         evokedAud = auditoryAvg(evoked)
+        evokedAud = butter_lowpass_filter(evokedAud, 42, 44100, 5)
         pl.plot(t*1e3, evokedAud*1e6)
         amp = normalizedN1p2(evokedAud, t, timeWindow)
         return(amp, epochs)
