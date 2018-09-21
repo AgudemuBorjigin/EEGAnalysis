@@ -15,19 +15,19 @@ import os # it assigns its path attribute to an os-specific path module
 import fnmatch # unix filename pattern matching
 
 stimulus = 'ITD'
-OS = 'Ubuntu'
+OS = 'Mac'
 
 if stimulus == 'ITD':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/ITD'
     else:
-        froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python/ITD'
+        froot = '/Users/baoagudemu1/Desktop/Lab/Experiment/DataAnalysis/Data'
     subjlist = ['S135']     
 else:
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/Atten'
     else:
-        froot = '/Users/baoagudemu1/Desktop/2018Spring/Lab/EEG-Python/Atten'
+        froot = '/Users/baoagudemu1/Desktop/Lab/EEG-Python/Atten'
     subjlist = ['S011']     
 #subjlist = ['S025', 'S028', 'S031', 'S043', 'S046', 'S072', 'S075', 'S078', 'S083', 'S117', 'S119', 'S123', 'S127', 'S128', 'S132', 
 # S133, S139, S140, S143, S144, S145, S149]
@@ -189,8 +189,12 @@ for subj in subjlist:
 ##################################################################################################################################################    
     
     if stimulus == 'ITD':
+        
         epochs1 = mne.Epochs(raw, eves2, [1, 5], tmin = -0.5, proj = True, tmax = 2.5, 
                         baseline = (-0.5, 0), reject = dict(eeg=150e-6)) # change the channels as needed
+        
+        t = epochs1.times
+        
         evoked1 = epochs1.average()
         
         epochs2 = mne.Epochs(raw, eves2, [2, 6], tmin = -0.5, proj = True, tmax = 2.5, 
@@ -204,6 +208,7 @@ for subj in subjlist:
         epochs4 = mne.Epochs(raw, eves2, [4, 8], tmin = -0.5, proj = True, tmax = 2.5, 
                             baseline = (-0.5, 0), reject = dict(eeg=150e-6)) # change the channels as needed
         evoked4 = epochs4.average()
+        
         # Average evoked response across conditions
         epochs = mne.Epochs(raw, eves2, [1, 2, 3, 4, 5, 6, 7, 8], tmin = -0.5, proj = True, tmax = 2.5, 
                             baseline = (-0.5, 0), reject = dict(eeg=150e-6)) # change the channels as needed
