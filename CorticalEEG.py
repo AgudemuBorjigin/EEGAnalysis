@@ -16,14 +16,14 @@ import fnmatch # unix filename pattern matching
 from scipy.signal import butter, lfilter
 
 stimulus = 'ITD'
-OS = 'Mac'
+OS = 'Ubuntu'
 
 if stimulus == 'ITD':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/ITD'
     else:
         froot = '/Users/baoagudemu1/Desktop/Lab/Experiment/DataAnalysis/Data'
-    subjlist = ['S078']     
+    subjlist = ['S128']     
 else:
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/Atten'
@@ -244,21 +244,25 @@ for subj in subjlist:
         # evoked_chann32 = evoked.data[31] - noiseFloor
         evoked.plot(picks = [31])
         evokedAud = auditoryAvg(evoked)
-        evokedAud = butter_lowpass_filter(evokedAud, 40.8, 44100, 5)
+        #evokedAud = butter_lowpass_filter(evokedAud, 40.8, 44100, 5)
         pl.plot(t*1e3, evokedAud*1e6)
+        pl.axvline(x = 75, color = 'r')
+        pl.axvline(x = 250, color = 'r')
+        pl.axvline(x = 1050, color = 'r')
+        pl.axvline(x = 1250, color = 'r')
         amp = normalizedN1p2(evokedAud, t, timeWindow)
         return(amp, epochs)
 ##################################################################################################################################################        
     if stimulus == 'ITD':
-        amp1, epochs1 = evoked([1, 5], [0.075, 0.25, 1.075, 1.3])
+        amp1, epochs1 = evoked([1, 5], [0.075, 0.25, 1.050, 1.25])
         
-        amp2, epochs2 = evoked([2, 6], [0.075, 0.25, 1, 1.3])
+        amp2, epochs2 = evoked([2, 6], [0.075, 0.25, 1.050, 1.25])
         
-        amp3, epochs3 = evoked([3, 7], [0.075, 0.25, 1, 1.3])
+        amp3, epochs3 = evoked([3, 7], [0.075, 0.25, 1.050, 1.25])
         
-        amp4, epochs4 = evoked([4, 8], [0.075, 0.25, 1, 1.3])
+        amp4, epochs4 = evoked([4, 8], [0.075, 0.25, 1.050, 1.25])
         # Average evoked response across conditions
-        amp, epochs = evoked([1, 2, 3, 4, 5, 6, 7, 8], [0.075, 0.25, 1, 1.3])
+        amp, epochs = evoked([1, 2, 3, 4, 5, 6, 7, 8], [0.075, 0.25, 1.050, 1.25])
         # epochs.save(fpath+'/'+'no_blinks_epo.fif', split_size='2GB') # saving epochs into .fif format
         
         pl.plot([amp1, amp2, amp3, amp4])
