@@ -18,21 +18,27 @@ from scipy.signal import butter, lfilter
 stimulus = 'ITD'
 OS = 'Ubuntu'
 
+subjlist = ['S116']     
+#subjlist = ['S025', 'S028', 'S031', 'S043', 'S046', 'S072', 'S075', 'S078', 'S083', 'S117', 'S119', 'S123', 'S127', 'S128', 'S132', 
+# S133, S139, S140, S143, S144, S145, S149]
+# S084 and S135 need different projecions
+
 if stimulus == 'ITD':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/ITD'
     else:
         froot = '/Users/baoagudemu1/Desktop/Lab/Experiment/DataAnalysis/Data'
-    subjlist = ['S128']     
-else:
+    subjlist = ['S031']     
+elif stimulus == 'Atten':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/Atten'
     else:
         froot = '/Users/baoagudemu1/Desktop/Lab/EEG-Python/Atten'
-    subjlist = ['S011']     
-#subjlist = ['S025', 'S028', 'S031', 'S043', 'S046', 'S072', 'S075', 'S078', 'S083', 'S117', 'S119', 'S123', 'S127', 'S128', 'S132', 
-# S133, S139, S140, S143, S144, S145, S149]
-# S084 and S135 need different projecions
+elif stimulus == 'FM':
+    if OS == 'Ubuntu':
+        froot = '/media/agudemu/Storage/Data/EEG/FM'
+    else:
+        froot = '/Users/baoagudemu1/Desktop/Lab/EEG-Python/FM'
 
 
 for subj in subjlist:
@@ -45,8 +51,10 @@ for subj in subjlist:
     # extracting bdf filenames into bdfs
     if stimulus == 'ITD':
         bdfs = fnmatch.filter(os.listdir(fpath), subj + '_ITD*.bdf') 
-    else:
+    elif stimulus == 'Atten':
         bdfs = fnmatch.filter(os.listdir(fpath), subj + '_Atten*.bdf') 
+    elif stimulus == 'FM':
+        bdfs = fnmatch.filter(os.listdir(fpath), subj + '_FM*.bdf') 
     if len(bdfs) >= 1:
         for k, bdf in enumerate(bdfs):
             rawtemp, evestemp = bs.importbdf(fpath + bdf)
@@ -67,7 +75,10 @@ for subj in subjlist:
     eves2[:, 1] = np.mod(eves2[:, 1], 256) 
     eves2[:, 2] = np.mod(eves2[:, 2], 256)
 ##############################################################################################################################################    
-    raw.filter(l_freq = 0.5, h_freq=50) # if channels are noisy, adjust the filter parameters
+    if stimulus == 'ITD' or stimulus == 'Atten':
+        raw.filter(l_freq = 0.5, h_freq=50) # if channels are noisy, adjust the filter parameters
+    elif stimulus == 'FM':
+        raw.filter(l_freq = 50, h_freq=3000) # adjust this range 
     # raw.plot(events=eves2)
     
     # SSP for blinks
@@ -88,33 +99,20 @@ for subj in subjlist:
     # for sure and removed. If the PCA was performed on the whole samples, we wouldn't
     # know which vector is going to be linked to the eye blink
     # for "n_eeg", it's recommended to remove only the biggest projection, which is eye blinks in this case
-    # greater n_eeg removes more nueral data, which might not be favorable
+    # greater n_eeg removes more nueral data, which is not favorable
     n_eeg = 4
     blink_projs = compute_proj_epochs(epochs_blinks, n_grad=0,
                                       n_mag=0, n_eeg=n_eeg,
                                       verbose='DEBUG') 
-    # time course of the PCA components
-#        blink_vectors = np.zeros(shape = (n_eeg,n_eeg))
-#        for k in np.arange(n_eeg):
-#            blink_value = blink_projs[k].values()
-#            blink_data = blink_value[2] # dictionary object containing data (key)
-#            blink_vectors[k] = blink_data['data']
-#        blink_vectors = np.transpose(blink_vectors)
-#        projs_timeCourse = np.matmul(blink_vectors, evoked_blinks_data)
-#        
-#        for k in np.arange(n_eeg):
-#            pl.subplot(n_eeg,1,k+1)
-#            pl.plot(projs_timeCourse[k,:])
         
     #raw.add_proj(blink_projs) # adding all projections
-    raw.add_proj([blink_projs[0], blink_projs[2]]) # raw.del_proj()
-    #raw.add_proj(blink_projs)
-    
+    raw.add_proj([blink_projs[0], blink_projs[2]]) # raw.del_proj()   
     # raw.plot_projs_topomap() shows the 4 max PCAs (eigenvectors)
+    # raw.plot(events = blinks, show_options = True) could show the options for applying different projections
     
     # if channels are too noisy, play with n_eeg, if the second variance is acting more than
     # the first, that means the channels are contaminated not just by the eye blinks, but also
-    # from other sources, raw.plot(events = blinks, show_options = True) could show the options for applying different projections
+    # from other sources
 
     # MANUALLY SELECT PROJECTIONS BY PLOTTING raw.plot_projs_topomap
     # REMOVE EXTRA PROJS USING raw.del_proj -- Remember index starts at 0
@@ -129,8 +127,7 @@ for subj in subjlist:
         
         noiseFloor = evoked[0:index1].mean(axis=0)
         return(noiseFloor, index1, index2)
-###########################################################################################################################################    
-    
+############################################################################################################################################
     def itc (t, epochs, cond):
         # computation of inter-trial-coherence (itc)
         freqs = np.arange(5., 100., 2.) # CHANGE AS NEEDED
@@ -140,14 +137,11 @@ for subj in subjlist:
         power, itc = tfr_multitaper(epochs, freqs = freqs,  n_cycles = n_cycles,
                    time_bandwidth = time_bandwidth, return_itc = True, n_jobs = 4)
         # itc.plot([channel number], mode = 'mean')
-        # np.savez(fpath+'/'+'itc_power', itc = itc.data, power = power.data) # saves multiple arrays, saved in .npz format
-        # npzFile = np.load(fpath+'/'+'itc_power.npz'), npzFiles.files, npzFile['itc']
-        # np.save(fpath+'/'+'itc_power', itc) # only one array, saved in .npy format
-        # itc = itc seems to save the attributes of the itc instead of the real data
         itc_copy = itc.copy()
         # itc_copy.plot_topo(baseline = (-0.5, 0), mode = 'zscore') 
         itc_data = itc_copy.data
         np.savez(froot+'/'+'itcs' + '/'+'itc'+str(cond)+'_'+subj, itc = itc_data, t = t, freqs = freqs); # itc_data is the most time consuming variable
+        # npzFile = np.load(fpath+'/'+'itc_power.npz'), npzFiles.files, npzFile['itc']
         # averaging across channels
         itc_data_mean = itc_data.mean(axis = 0) # CHANGE AS NEEDED: average across all channels 
         #itc_data_mean = itc_data[[4, 26, 25, 30, 31], :, :].mean(axis = 0) # these channels are auditory 
@@ -200,6 +194,24 @@ for subj in subjlist:
         y = lfilter(b, a, data)
         return y
 ##################################################################################################################################################    
+    def fft_evoked(evoked, t, fs, timeWindow):
+        index = np.where(t>timeWindow[0])
+        index1 = index[0]
+        index1 = index1[0]
+        
+        index = np.where(t>timeWindow[1])
+        index2 = index[0]
+        index2 = index2[0]
+        
+        t_window = t[index1:index2]
+        
+        evokedAfterITD = evoked[index1:index2]
+        evoked_fft = np.fft.fft(evokedAfterITD)
+        freq = np.arange(0, fs-1/fs, fs/len(t_window))
+        pl.figure()
+        pl.plot(freq, np.abs(evoked_fft.real))
+        pl.show()
+##################################################################################################################################################    
     def normalizedN1p2(evoked, t, timeWindow):
         index = np.where(t>timeWindow[0])
         index1 = index[0]
@@ -246,21 +258,22 @@ for subj in subjlist:
         evokedAud = auditoryAvg(evoked)
         #evokedAud = butter_lowpass_filter(evokedAud, 40.8, 44100, 5)
         pl.plot(t*1e3, evokedAud*1e6)
-        pl.axvline(x = 75, color = 'r')
-        pl.axvline(x = 250, color = 'r')
-        pl.axvline(x = 1050, color = 'r')
-        pl.axvline(x = 1250, color = 'r')
+        pl.axvline(x = timeWindow[0]*1e3, color = 'r')
+        pl.axvline(x = timeWindow[1]*1e3, color = 'r')
+        pl.axvline(x = timeWindow[2]*1e3, color = 'r')
+        pl.axvline(x = timeWindow[3]*1e3, color = 'r')
         amp = normalizedN1p2(evokedAud, t, timeWindow)
-        return(amp, epochs)
+        return(amp, epochs, evokedAud)
 ##################################################################################################################################################        
     if stimulus == 'ITD':
         amp1, epochs1 = evoked([1, 5], [0.075, 0.25, 1.050, 1.25])
-        
+
         amp2, epochs2 = evoked([2, 6], [0.075, 0.25, 1.050, 1.25])
         
         amp3, epochs3 = evoked([3, 7], [0.075, 0.25, 1.050, 1.25])
         
-        amp4, epochs4 = evoked([4, 8], [0.075, 0.25, 1.050, 1.25])
+        amp4, epochs4, evoked4 = evoked([4, 8], [0.075, 0.25, 1.050, 1.25])
+        fft_evoked(evoked4, epochs4.times, 4096.0, [1.050, 1.5])
         # Average evoked response across conditions
         amp, epochs = evoked([1, 2, 3, 4, 5, 6, 7, 8], [0.075, 0.25, 1.050, 1.25])
         # epochs.save(fpath+'/'+'no_blinks_epo.fif', split_size='2GB') # saving epochs into .fif format
@@ -303,7 +316,13 @@ for subj in subjlist:
         plot(t, itc_long, 'long stream')
         itc_cue = itc (t, epochs_cue, 'visual cues')
         plot(t, itc_cue, 'visual cue')
-    
+        
+    elif stimulus == 'FM':
+        epochs_positive = mne.Epochs(raw, eves2, [1], tmin = -0.05, proj = True, tmax = 0.15, 
+                            baseline = (-0.05, 0.), reject = dict(eeg=150e-6)) # change the channels as needed
+        t = epochs_positive.times
+        evoked_positive = epochs_positive.average() # 
+        fft_evoked(evoked_positive, t, 16384, [0, 0.15])
     
     #    code for trying to figure out the right frequency cutt-off for averaging    
     #    evokedPeaks = []
