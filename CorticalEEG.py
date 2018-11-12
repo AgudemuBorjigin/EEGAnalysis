@@ -15,8 +15,8 @@ import os # it assigns its path attribute to an os-specific path module
 import fnmatch # unix filename pattern matching
 from scipy.signal import butter, lfilter
 
-stimulus = 'ITD'
-OS = 'Ubuntu'
+stimulus = 'Atten'
+OS = 'Mac'
 
 if stimulus == 'ITD':
     if OS == 'Ubuntu':
@@ -67,7 +67,8 @@ for subj in subjlist:
     eves2[:, 1] = np.mod(eves2[:, 1], 256) 
     eves2[:, 2] = np.mod(eves2[:, 2], 256)
 ##############################################################################################################################################    
-    raw.filter(l_freq = 0.5, h_freq=50) # if channels are noisy, adjust the filter parameters
+    raw.filter(l_freq = 0.5, h_freq=7) # if channels are noisy, adjust the filter parameters
+    # 7 Hz for attenuation, regular 50 Hz
     # raw.plot(events=eves2)
     
     # SSP for blinks
@@ -149,8 +150,8 @@ for subj in subjlist:
         itc_data = itc_copy.data
         np.savez(froot+'/'+'itcs' + '/'+'itc'+str(cond)+'_'+subj, itc = itc_data, t = t, freqs = freqs); # itc_data is the most time consuming variable
         # averaging across channels
-        itc_data_mean = itc_data.mean(axis = 0) # CHANGE AS NEEDED: average across all channels 
-        #itc_data_mean = itc_data[[4, 26, 25, 30, 31], :, :].mean(axis = 0) # these channels are auditory 
+        #itc_data_mean = itc_data.mean(axis = 0) # CHANGE AS NEEDED: average across all channels 
+        itc_data_mean = itc_data[[4, 26, 25, 30, 31], :, :].mean(axis = 0) # these channels are auditory 
         # if bad channels were added manually, select good channels
         power_copy = power.copy()
         power_data = power_copy.data
@@ -283,26 +284,28 @@ for subj in subjlist:
         # Average evoked response across short-stream conditions
         epochs_short = mne.Epochs(raw, eves2, [3, 4, 7, 8], tmin = -0.5, proj = True, tmax = 4.2, 
                             baseline = (-0.5, 0.), reject = dict(eeg=150e-6)) # change the channels as needed
-        t = epochs_short.times
+        t_short = epochs_short.times
         evoked_shortStream = epochs_short.average() 
         
         # Average evoked response across long-stream conditions
         epochs_long = mne.Epochs(raw, eves2, [1, 2, 5, 6], tmin = -0.5, proj = True, tmax = 4.2, 
                             baseline = (-0.5, 0), reject = dict(eeg=150e-6))
+        t_long = epochs_long.times
         evoked_longStream = epochs_long.average()
         
         # Average visual evoked response
         epochs_cue = mne.Epochs(raw, eves2, [9, 10, 11, 12, 13, 14, 15, 16],
                                 tmin = -0.5, proj = True, tmax = 1.0, 
                                 baseline = (-0.5, 0), reject = dict(eeg=150e-6))
+        t_cue = epochs_cue.times
         evoked_cue = epochs_cue.average()
         
-        itc_short = itc (t, epochs_short, 'short stream')
-        plot(t, itc_short, 'short stream')
-        itc_long = itc (t, epochs_long, 'long stream')
-        plot(t, itc_long, 'long stream')
-        itc_cue = itc (t, epochs_cue, 'visual cues')
-        plot(t, itc_cue, 'visual cue')
+        itc_short = itc (t_short, epochs_short, 'short stream')
+        plot(t_short, itc_short, 'short stream')
+        itc_long = itc (t_long, epochs_long, 'long stream')
+        plot(t_long, itc_long, 'long stream')
+        itc_cue = itc (t_cue, epochs_cue, 'visual cues')
+        plot(t_cue, itc_cue, 'visual cue')
     
     
     #    code for trying to figure out the right frequency cutt-off for averaging    
