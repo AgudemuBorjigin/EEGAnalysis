@@ -18,7 +18,7 @@ from scipy.signal import butter, lfilter
 stimulus = 'ITD'
 OS = 'Ubuntu'
 
-subjlist = ['S116']     
+subjlist = ['S043']     
 #subjlist = ['S025', 'S028', 'S031', 'S043', 'S046', 'S072', 'S075', 'S078', 'S083', 'S117', 'S119', 'S123', 'S127', 'S128', 'S132', 
 # S133, S139, S140, S143, S144, S145, S149]
 # S084 and S135 need different projecions
@@ -27,8 +27,7 @@ if stimulus == 'ITD':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/ITD'
     else:
-        froot = '/Users/baoagudemu1/Desktop/Lab/Experiment/DataAnalysis/Data'
-    subjlist = ['S031']     
+        froot = '/Users/baoagudemu1/Desktop/Lab/Experiment/DataAnalysis/Data'    
 elif stimulus == 'Atten':
     if OS == 'Ubuntu':
         froot = '/media/agudemu/Storage/Data/EEG/Atten'
@@ -78,7 +77,7 @@ for subj in subjlist:
     if stimulus == 'ITD' or stimulus == 'Atten':
         raw.filter(l_freq = 0.5, h_freq=50) # if channels are noisy, adjust the filter parameters
     elif stimulus == 'FM':
-        raw.filter(l_freq = 50, h_freq=3000) # adjust this range 
+        raw.filter(l_freq = 10, h_freq=3000) # adjust this range 
     # raw.plot(events=eves2)
     
     # SSP for blinks
@@ -88,8 +87,8 @@ for subj in subjlist:
     # raw.plot(events=blinks) shows the lines at eye blinks
     
     # the trigger for blinks can be chosen to be starting from 1000, just to make sure it doesn't collide with the triggers for conditions
-    epochs_blinks = mne.Epochs(raw, blinks, 998, tmin = -0.5, tmax = 0.5, 
-                               proj = False, baseline = (-0.5, 0), 
+    epochs_blinks = mne.Epochs(raw, blinks, 998, tmin = -0.05, tmax = 0.15, 
+                               proj = False, baseline = (-0.05, 0), 
                                reject=dict(eeg=500e-6)) 
     evoked_blinks = epochs_blinks.average()
     evoked_blinks_data = evoked_blinks.data[np.arange(32),:]
@@ -103,7 +102,7 @@ for subj in subjlist:
     n_eeg = 4
     blink_projs = compute_proj_epochs(epochs_blinks, n_grad=0,
                                       n_mag=0, n_eeg=n_eeg,
-                                      verbose='DEBUG') 
+                                      verbose='DEBUG')  
         
     #raw.add_proj(blink_projs) # adding all projections
     raw.add_proj([blink_projs[0], blink_projs[2]]) # raw.del_proj()   
@@ -117,20 +116,34 @@ for subj in subjlist:
     # MANUALLY SELECT PROJECTIONS BY PLOTTING raw.plot_projs_topomap
     # REMOVE EXTRA PROJS USING raw.del_proj -- Remember index starts at 0
 ###########################################################################################################################################
-    def noiseFloorEstimate (t, evoked):
+    def noiseFloorEstimate(t, evoked):
         index = np.where(t>0)
         index1 = index[0]
         index1 = index1[0]
-        index = np.where(t<0.2) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, 0.3
+        index = np.where(t<0.3) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, 0.3
         index2 = index[0]
         index2 = index2[-1]
         
         noiseFloor = evoked[0:index1].mean(axis=0)
-        return(noiseFloor, index1, index2)
+        return noiseFloor, index1, index2
 ############################################################################################################################################
-    def itc (t, epochs, cond):
+    def itc_normalization(itc, freqs, t):
+        if stimulus == 'ITD':
+            freqSub = np.where(freqs<20) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, refer to time-freq plot of itc, 23
+        elif stimulus == 'Atten':
+            freqSub = np.where(freqs<50) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, refer to time-freq plot of itc, 23
+            
+        itc_ave = itc[freqSub[0], :].mean(axis=0)
+        noiseFloor, index1, index2 = noiseFloorEstimate(t, itc_ave)
+        itc_ave = itc_ave - noiseFloor
+        
+        firstPeakAmp = np.absolute(np.max(itc_ave[index1:index2])) 
+        itc_norm = itc_ave/firstPeakAmp
+        return itc_norm
+############################################################################################################################################
+    def itc(t, epochs, cond):
         # computation of inter-trial-coherence (itc)
-        freqs = np.arange(5., 100., 2.) # CHANGE AS NEEDED
+        freqs = np.arange(1., 50., 1.) # CHANGE AS NEEDED
         n_cycles = freqs/4. # time resolution is 0.25 s (1 s has "freq" number of cycles)
         time_bandwidth = 2.0 # number of taper = time_bandwidth product - 1 
         # usually n_cycles and time_bandwidth are fixed, which determines the frequency resolution 
@@ -140,15 +153,20 @@ for subj in subjlist:
         itc_copy = itc.copy()
         # itc_copy.plot_topo(baseline = (-0.5, 0), mode = 'zscore') 
         itc_data = itc_copy.data
-        np.savez(froot+'/'+'itcs' + '/'+'itc'+str(cond)+'_'+subj, itc = itc_data, t = t, freqs = freqs); # itc_data is the most time consuming variable
+         # averaging across channels
+        itc_data_mean_all = itc_data.mean(axis = 0) # CHANGE AS NEEDED: average across all channels 
+        itc_data_mean_auditory = itc_data[[4, 26, 25, 30, 31], :, :].mean(axis = 0) # these channels are auditory 
+        
+        np.savez(froot+'/'+'itcs' + '/'+subj+'_'+'itc'+str(cond), itc = itc_data, t = t, freqs = freqs, itc_avg_all = itc_data_mean_all, itc_avg_auditory = itc_data_mean_auditory); # itc_data is the most time consuming variable
         # npzFile = np.load(fpath+'/'+'itc_power.npz'), npzFiles.files, npzFile['itc']
-        # averaging across channels
-        itc_data_mean = itc_data.mean(axis = 0) # CHANGE AS NEEDED: average across all channels 
-        #itc_data_mean = itc_data[[4, 26, 25, 30, 31], :, :].mean(axis = 0) # these channels are auditory 
         # if bad channels were added manually, select good channels
         power_copy = power.copy()
         power_data = power_copy.data
-        np.savez(froot+'/'+'powers' + '/'+'power'+str(cond)+'_'+subj, power = power_data, t = t, freqs = freqs);
+        np.savez(froot+'/'+'powers' + '/'+subj+'_'+'power'+str(cond), power = power_data, t = t, freqs = freqs);
+        
+        return itc_data_mean_all, itc_data_mean_auditory
+    
+    def plot_spectrogram(itc_data_mean, t, freqs, cond):
         fig, ax = pl.subplots()
         ax.imshow(itc_data_mean, interpolation='bicubic', aspect='auto', 
                   origin='lower', cmap='RdBu_r', vmin = 0, vmax = 0.38) 
@@ -161,19 +179,18 @@ for subj in subjlist:
         ax.set_xlabel('Time [s]')
         ax.set_ylabel('Frequency [Hz]')
         pl.show()
-        #   pl.plot(t, itc_data_mean[0:8, :].mean(axis=0))
-        freqSub = np.where(freqs<10) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, refer to time-freq plot of itc, 23
-        itc_ave = itc_data_mean[freqSub[0], :].mean(axis=0)
-        noiseFloor, index1, index2 = noiseFloorEstimate(t, itc_ave)
-        itc_ave = itc_ave - noiseFloor
         
-        firstPeakAmp = np.absolute(np.max(itc_ave[index1:index2])) # ABSOLUTE? POLARITY MATTERS
-        itc_norm = itc_ave/firstPeakAmp
-        return(itc_norm) 
+    def peak(itc_norm, t):
+        index = np.where(t>0.9)
+        index1 = index[0]
+        index1 = index1[0]
+        index = np.where(t<1.3) # CHANGE AS NEEDED FOR DIFFERENT SUBJECTS, 0.3
+        index2 = index[0]
+        index2 = index2[-1]
+        return max(itc_norm[index1:index2])
         
-    def plot (t, itc_norm, cond):
+    def plot_avg(itc_norm, t, cond):
         pl.figure()
-        
         pl.plot(t, itc_norm)
         pl.xlabel('Time (s)', fontsize=14)
         pl.ylabel('Normalized response', fontsize=14)
@@ -181,8 +198,64 @@ for subj in subjlist:
         ax = pl.gca()
         ax.tick_params(labelsize=14)
         pl.show()
-        return
+        
+        peakAmp = peak(itc_norm, t)
+        return peakAmp
 ##################################################################################################################################################    
+    def normalizedN1p2(evoked, t, timeWindow):
+        index = np.where(t>timeWindow[0])
+        index1 = index[0]
+        index1 = index1[0]
+        
+        index = np.where(t>timeWindow[1])
+        index2 = index[0]
+        index2 = index2[0]
+        
+        index = np.where(t>timeWindow[2])
+        index3 = index[0]
+        index3 = index3[0]
+        
+        index = np.where(t>timeWindow[3])
+        index4 = index[0]
+        index4 = index4[0]
+        
+        n1p2onset = np.abs(np.min(evoked[index1:index2]) - np.max(evoked[index1:index2]))
+        n1p2ITD = np.abs(np.min(evoked[index3:index4]) - np.max(evoked[index3:index4]))
+        evokedAmpNor = n1p2ITD/n1p2onset  
+        return evokedAmpNor
+##################################################################################################################################################            
+    def auditoryAvg(evoked):
+        evokedAvg = np.zeros(shape = (1, len(evoked.data[0])))
+        audChanns = [4, 26, 25, 30, 31]
+        for i in audChanns:
+            evokedAvg = evokedAvg + evoked.data[i]
+        evokedAvg = evokedAvg / len(audChanns)
+        return evokedAvg[0]
+##################################################################################################################################################    
+    def evoked(triggerID, timeWindow):
+        epochs = mne.Epochs(raw, eves2, triggerID, tmin = -0.5, proj = True, tmax = 2.5, 
+                        baseline = (-0.5, 0), reject = dict(eeg=150e-6)) # change the channels as needed
+        t = epochs.times
+        # always start with looking at evoked (averaged) response, 
+        # and see which channels are bad by using evoked.plot(picks=[30, 31]) and evoked.plot_topomap(times=[1.2]), evoked.pick_chanels()
+        # add those channels to the list manually 
+        # by raw.info['bads'] += ['A7', 'A6', 'A24'] if necessary
+        evoked_raw = epochs.average()
+        # noiseFloor, _, _, = noiseFloorEstimate(t, evoked.data[31]) # noise floor is very small, since DC has been filtered out
+        # evoked_chann32 = evoked.data[31] - noiseFloor
+        evokedAud = auditoryAvg(evoked_raw)
+        evokedAll = evoked_raw.data.mean(axis = 0)
+        #evokedAud = butter_lowpass_filter(evokedAud, 40.8, 44100, 5)
+#        evoked.plot(picks = [31])
+#        pl.plot(t*1e3, evokedAud*1e6)
+#        pl.axvline(x = timeWindow[0]*1e3, color = 'r')
+#        pl.axvline(x = timeWindow[1]*1e3, color = 'r')
+#        pl.axvline(x = timeWindow[2]*1e3, color = 'r')
+#        pl.axvline(x = timeWindow[3]*1e3, color = 'r')
+        ampAud = normalizedN1p2(evokedAud, t, timeWindow)
+        ampAll = normalizedN1p2(evokedAll, t, timeWindow)
+        return epochs, ampAll, ampAud
+##################################################################################################################################################        
     def butter_lowpass(cutoff, fs, order):
         nyq = 0.5 * fs
         normal_cutoff = cutoff / nyq
@@ -207,123 +280,155 @@ for subj in subjlist:
         
         evokedAfterITD = evoked[index1:index2]
         evoked_fft = np.fft.fft(evokedAfterITD)
-        freq = np.arange(0, fs-1/fs, fs/len(t_window))
+        freq = np.linspace(0, fs, len(t_window))
         pl.figure()
         pl.plot(freq, np.abs(evoked_fft.real))
         pl.show()
 ##################################################################################################################################################    
-    def normalizedN1p2(evoked, t, timeWindow):
-        index = np.where(t>timeWindow[0])
-        index1 = index[0]
-        index1 = index1[0]
-        
-        index = np.where(t>timeWindow[1])
-        index2 = index[0]
-        index2 = index2[0]
-        
-        index = np.where(t>timeWindow[2])
-        index3 = index[0]
-        index3 = index3[0]
-        
-        index = np.where(t>timeWindow[3])
-        index4 = index[0]
-        index4 = index4[0]
-        
-        n1p2onset = np.abs(np.min(evoked[index1:index2]) - np.max(evoked[index1:index2]))
-        n1p2ITD = np.abs(np.min(evoked[index3:index4]) - np.max(evoked[index3:index4]))
-        evokedAmpNor = n1p2ITD/n1p2onset
-        
-        return(evokedAmpNor)
-##################################################################################################################################################            
-    def auditoryAvg(evoked):
-        evokedAvg = np.zeros(shape = (1, len(evoked.data[0])))
-        audChanns = [4, 26, 25, 30, 31]
-        for i in audChanns:
-            evokedAvg = evokedAvg + evoked.data[i]
-        evokedAvg = evokedAvg / len(audChanns)
-        return evokedAvg[0]
-##################################################################################################################################################    
-    def evoked(triggerID, timeWindow):
-        epochs = mne.Epochs(raw, eves2, triggerID, tmin = -0.5, proj = True, tmax = 2.5, 
-                        baseline = (-0.5, 0), reject = dict(eeg=150e-6)) # change the channels as needed
-        t = epochs.times
-        # always start with looking at evoked (averaged) response, 
-        # and see which channels are bad by using evoked.plot(picks=[30, 31]) and evoked.plot_topomap(times=[1.2]), evoked.pick_chanels()
-        # add those channels to the list manually 
-        # by raw.info['bads'] += ['A7', 'A6', 'A24'] if necessary
-        evoked = epochs.average()
-        # noiseFloor, _, _, = noiseFloorEstimate(t, evoked.data[31]) # noise floor is very small, since DC has been filtered out
-        # evoked_chann32 = evoked.data[31] - noiseFloor
-        evoked.plot(picks = [31])
-        evokedAud = auditoryAvg(evoked)
-        #evokedAud = butter_lowpass_filter(evokedAud, 40.8, 44100, 5)
-        pl.plot(t*1e3, evokedAud*1e6)
-        pl.axvline(x = timeWindow[0]*1e3, color = 'r')
-        pl.axvline(x = timeWindow[1]*1e3, color = 'r')
-        pl.axvline(x = timeWindow[2]*1e3, color = 'r')
-        pl.axvline(x = timeWindow[3]*1e3, color = 'r')
-        amp = normalizedN1p2(evokedAud, t, timeWindow)
-        return(amp, epochs, evokedAud)
-##################################################################################################################################################        
     if stimulus == 'ITD':
-        amp1, epochs1 = evoked([1, 5], [0.075, 0.25, 1.050, 1.25])
+        timeWindow = [0.050, 0.25, 1.050, 1.25];
+        epochs1, amp1, amp1Aud = evoked([1, 5], timeWindow)
+        epochs1_left, amp1_left, amp1_leftAud = evoked([1], timeWindow)
+        epochs1_right, amp1_right, amp1_rightAud = evoked([5], timeWindow)
 
-        amp2, epochs2 = evoked([2, 6], [0.075, 0.25, 1.050, 1.25])
+        epochs2, amp2, amp2Aud = evoked([2, 6], timeWindow)
+        epochs2_left, amp2_left, amp2_leftAud = evoked([2], timeWindow)
+        epochs2_right, amp2_right, amp2_rightAud = evoked([6], timeWindow)
         
-        amp3, epochs3 = evoked([3, 7], [0.075, 0.25, 1.050, 1.25])
+        epochs3, amp3, amp3Aud = evoked([3, 7], timeWindow)
+        epochs3_left, amp3_left, amp3_leftAud = evoked([3], timeWindow)
+        epochs3_right, amp3_right, amp3_rightAud = evoked([7], timeWindow)
         
-        amp4, epochs4, evoked4 = evoked([4, 8], [0.075, 0.25, 1.050, 1.25])
-        fft_evoked(evoked4, epochs4.times, 4096.0, [1.050, 1.5])
+        epochs4, amp4, amp4Aud = evoked([4, 8], timeWindow)
+        epochs4_left, amp4_left, amp4_leftAud = evoked([4], timeWindow)
+        epochs4_right, amp4_right, amp4_rightAud = evoked([8], timeWindow)
+        #fft_evoked(evoked4, epochs4.times, 4096.0, [1.050, 1.5])
         # Average evoked response across conditions
-        amp, epochs = evoked([1, 2, 3, 4, 5, 6, 7, 8], [0.075, 0.25, 1.050, 1.25])
-        # epochs.save(fpath+'/'+'no_blinks_epo.fif', split_size='2GB') # saving epochs into .fif format
+        epochs_avg, amp_avg, amp_avgAud = evoked([1, 2, 3, 4, 5, 6, 7, 8], timeWindow)
+        epochs_avg_left, amp_avg_left, amp_avg_leftAud = evoked([1, 2, 3, 4], timeWindow)
+        epochs_avg_right, amp_avg_right, amp_avg_rightAud = evoked([5, 6, 7, 8], timeWindow)
         
-        pl.plot([amp1, amp2, amp3, amp4])
+        ampAllBoth = [amp1, amp2, amp3, amp4, amp_avg]
+        ampAllLeft = [amp1_left, amp2_left, amp3_left, amp4_left, amp_avg_left]
+        ampAllRight = [amp1_right, amp2_right, amp3_right, amp4_right, amp_avg_right]
         
-        t = epochs.times
-        itc_avg = itc (t, epochs, 'avg')
-        plot(t, itc_avg, 'avg')
-        itc_1 = itc (t, epochs1, '20us')
-        plot(t, itc_1, '20us')
-        itc_2 = itc (t, epochs2, '60us')
-        plot(t, itc_2, '60us')
-        itc_3 = itc (t, epochs3, '180us')
-        plot(t, itc_3, '180us')
-        itc_4 = itc (t, epochs4, '540us')
-        plot(t, itc_4, '540us')
+        ampAudBoth = [amp1Aud, amp2Aud, amp3Aud, amp4Aud, amp_avgAud]
+        ampAudLeft = [amp1_leftAud, amp2_leftAud, amp3_leftAud, amp4_leftAud, amp_avg_leftAud]
+        ampAudRight = [amp1_rightAud, amp2_rightAud, amp3_rightAud, amp4_rightAud, amp_avg_rightAud]
+        
+#        pl.plot([amp1, amp2, amp3, amp4])
+        
+        t = epochs_avg.times
+        freqs = np.arange(1., 50., 1.) # chaneg as needed
+        itc_mean_all, itc_mean_auditory = itc(t, epochs_avg, 'avg')
+        itc_mean_all_left, itc_mean_auditory_left = itc(t, epochs_avg_left, 'avg_left')
+        itc_mean_all_right, itc_mean_auditory_right = itc(t, epochs_avg_right, 'avg_right')
+        
+        itc_mean_all_20us, itc_mean_auditory_20us = itc(t, epochs1, '20us')
+        itc_mean_all_20us_left, itc_mean_auditory_20us_left = itc(t, epochs1_left, '20us_left')
+        itc_mean_all_20us_right, itc_mean_auditory_20us_right = itc(t, epochs1_right, '20us_right')
+        
+        itc_mean_all_60us, itc_mean_auditory_60us =itc(t, epochs2, '60us')
+        itc_mean_all_60us_left, itc_mean_auditory_60us_left = itc(t, epochs2_left, '60us_left')
+        itc_mean_all_60us_right, itc_mean_auditory_60us_right = itc(t, epochs2_right, '60us_right')
+        
+        itc_mean_all_180us, itc_mean_auditory_180us = itc(t, epochs3, '180us')
+        itc_mean_all_180us_left, itc_mean_auditory_180us_left = itc(t, epochs3_left, '180us_left')
+        itc_mean_all_180us_right, itc_mean_auditory_180us_right = itc(t, epochs3_right, '180us_right')
+        
+        itc_mean_all_540us, itc_mean_auditory_540us = itc(t, epochs4, '540us')
+        itc_mean_all_540us_left, itc_mean_auditory_540us_left = itc(t, epochs4_left, '540us_left')
+        itc_mean_all_540us_right, itc_mean_auditory_540us_right = itc(t, epochs4_right, '540us_right')
+        
+        
+#        itcMeanType = itc_mean_all
+        cond = ''
+        plot_spectrogram(itc_mean_auditory, t, freqs, cond)
+#        itc_norm = itc_normalization(itcMeanType, freqs, t)
+#        peak_all = plot_avg(itc_norm, t, cond)
+        
+        itcMeanType = [itc_mean_all_20us, itc_mean_all_60us, itc_mean_all_180us, itc_mean_all_540us, itc_mean_all]
+        peaksAllBoth = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAllBoth[i] = peak(itc_norm, t)
+            
+        itcMeanType = [itc_mean_all_20us_left, itc_mean_all_60us_left, itc_mean_all_180us_left, itc_mean_all_540us_left, itc_mean_all_left]
+        peaksAllLeft = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAllLeft[i] = peak(itc_norm, t)
+            
+        itcMeanType = [itc_mean_all_20us_right, itc_mean_all_60us_right, itc_mean_all_180us_right, itc_mean_all_540us_right, itc_mean_all_right]
+        peaksAllRight = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAllRight[i] = peak(itc_norm, t)
+            
+        itcMeanType = [itc_mean_auditory_20us, itc_mean_auditory_60us, itc_mean_auditory_180us, itc_mean_auditory_540us, itc_mean_auditory]
+        peaksAuditoryBoth = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAuditoryBoth[i] = peak(itc_norm, t)
+            
+        itcMeanType = [itc_mean_auditory_20us_left, itc_mean_auditory_60us_left, itc_mean_auditory_180us_left, itc_mean_auditory_540us_left, itc_mean_auditory_left]
+        peaksAuditoryLeft = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAuditoryLeft[i] = peak(itc_norm, t)
+            
+        itcMeanType = [itc_mean_auditory_20us_right, itc_mean_auditory_60us_right, itc_mean_auditory_180us_right, itc_mean_auditory_540us_right, itc_mean_auditory_right]
+        peaksAuditoryRight = [0]*len(itcMeanType)
+        for i in range(len(itcMeanType)):
+            itc_norm = itc_normalization(itcMeanType[i], freqs, t)
+            peaksAuditoryRight[i] = peak(itc_norm, t)
+        
     
     elif stimulus == 'Atten':
         # Average evoked response across short-stream conditions
         epochs_short = mne.Epochs(raw, eves2, [3, 4, 7, 8], tmin = -0.5, proj = True, tmax = 4.2, 
                             baseline = (-0.5, 0.), reject = dict(eeg=150e-6)) # change the channels as needed
-        t = epochs_short.times
+        t_short = epochs_short.times
         evoked_shortStream = epochs_short.average() 
         
         # Average evoked response across long-stream conditions
         epochs_long = mne.Epochs(raw, eves2, [1, 2, 5, 6], tmin = -0.5, proj = True, tmax = 4.2, 
                             baseline = (-0.5, 0), reject = dict(eeg=150e-6))
+        t_long = epochs_long.times
         evoked_longStream = epochs_long.average()
         
         # Average visual evoked response
         epochs_cue = mne.Epochs(raw, eves2, [9, 10, 11, 12, 13, 14, 15, 16],
                                 tmin = -0.5, proj = True, tmax = 1.0, 
                                 baseline = (-0.5, 0), reject = dict(eeg=150e-6))
+        t_cue = epochs_cue.times
         evoked_cue = epochs_cue.average()
         
-        itc_short = itc (t, epochs_short, 'short stream')
-        plot(t, itc_short, 'short stream')
-        itc_long = itc (t, epochs_long, 'long stream')
-        plot(t, itc_long, 'long stream')
-        itc_cue = itc (t, epochs_cue, 'visual cues')
-        plot(t, itc_cue, 'visual cue')
+        itc_short_all, itc_short_auditory = itc (t_short, epochs_short, 'short stream')
+        itc_long_all, itc_long_auditory = itc (t_long, epochs_long, 'long stream')
+        itc_cue_all, itc_cue_auditory = itc (t_cue, epochs_cue, 'visual cues')
+        
+        cond = 'long_stream'
+        freqs = np.arange(1., 50., 1.) # chaneg as needed
+        t = t_long
+        itcType = itc_long_auditory
+        itc_norm = itc_normalization(itcType, freqs, t)
+        peak_all = plot_avg(itc_norm, t, cond)
         
     elif stimulus == 'FM':
         epochs_positive = mne.Epochs(raw, eves2, [1], tmin = -0.05, proj = True, tmax = 0.15, 
                             baseline = (-0.05, 0.), reject = dict(eeg=150e-6)) # change the channels as needed
         t = epochs_positive.times
-        evoked_positive = epochs_positive.average() # 
-        fft_evoked(evoked_positive, t, 16384, [0, 0.15])
-    
+        evoked_positive = epochs_positive.average() 
+        evoked_grand = auditoryAvg(evoked_positive)
+        evoked_fft = np.fft.fft(evoked_grand)
+        fs = 16384
+        freq = np.linspace(0, fs, len(evoked_fft))
+        pl.figure()
+        pl.plot(freq, np.abs(evoked_fft))
+        pl.show()
+        
+        
     #    code for trying to figure out the right frequency cutt-off for averaging    
     #    evokedPeaks = []
     #    firstPeaks = []
